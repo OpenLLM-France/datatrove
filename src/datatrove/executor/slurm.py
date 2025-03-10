@@ -43,8 +43,6 @@ class SlurmPipelineExecutor(PipelineExecutor):
         partition: slurm partition
         cpus_per_task: how many cpus to give each task. should be 1
             except when you need to give each task more memory
-        mem_per_cpu_gb: slurm option. use in conjunction with the
-            above option to increase max memory
         workers: how many tasks to run simultaneously. -1 for no
             limit
         job_name: slurm job name
@@ -88,7 +86,6 @@ class SlurmPipelineExecutor(PipelineExecutor):
         time: str,
         partition: str,
         cpus_per_task: int = 1,
-        mem_per_cpu_gb: int = 2,
         workers: int = -1,
         job_name: str = "data_processing",
         qos: str = "normal",
@@ -118,7 +115,6 @@ class SlurmPipelineExecutor(PipelineExecutor):
         self.workers = workers
         self.partition = partition
         self.cpus_per_task = cpus_per_task
-        self.mem_per_cpu_gb = mem_per_cpu_gb
         self.tasks_per_job = tasks_per_job
         self.time = time
         self.job_name = job_name
@@ -193,8 +189,8 @@ class SlurmPipelineExecutor(PipelineExecutor):
                 {
                     **self.get_sbatch_args(),
                     "cpus-per-task": 1,
-                    "mem-per-cpu": "1G",
                     "dependency": f"afterok:{self.job_id}",
+                    "kill-on-invalid-dep":"yes",
                 },
                 f'merge_stats {self.logging_dir.resolve_paths("stats")} '
                 f'-o {self.logging_dir.resolve_paths("stats.json")}',
@@ -294,7 +290,6 @@ class SlurmPipelineExecutor(PipelineExecutor):
         slurm_logfile = os.path.join(self.slurm_logs_folder, "%A_%a.out")
         sbatch_args = {
             "cpus-per-task": self.cpus_per_task,
-            "mem-per-cpu": f"{self.mem_per_cpu_gb}G",
             "partition": self.partition,
             "job-name": self.job_name,
             "time": self.time,
@@ -326,9 +321,9 @@ class SlurmPipelineExecutor(PipelineExecutor):
             self.env_command
             if self.env_command
             else (
-                f"""conda init bash
-        conda activate {self.condaenv}
-        source ~/.bashrc"""
+                f"""module purge
+        module load anaconda-py3/2023.09
+        conda activate {self.condaenv}"""
                 if self.condaenv
                 else (f"source {self.venv_path}" if self.venv_path else "")
             )
