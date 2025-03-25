@@ -271,7 +271,25 @@ SPLIT_TEXT_DOCUMENTS = "DOCUMENT"
 SPLIT_TEXT_SENTENCES = "SENTENCE"
 SPLIT_TEXT_PARAGRAPHS = "PARAGRAPH"
 SPLIT_TEXT_WORDS = "WORDS"
+SPLIT_TEXT_CHUNKS = "CHUNKS"
 
+def split_into_chunks(text, min_length=1000):
+    chunks = []
+    current_chunk = []
+    current_length = 0
+    
+    for line in text.split('\n'):
+        if current_length >= min_length and current_chunk:
+            chunks.append('\n'.join(current_chunk))
+            current_chunk = []
+            current_length = 0
+        
+        current_chunk.append(line)
+        current_length += len(line) + 1  # +1 for the newline character
+    
+    if current_chunk:
+        chunks.append('\n'.join(current_chunk))
+    return chunks
 
 @lru_cache(5)
 def split_into_parts(text, mode="DOCUMENT", language=Languages.english):
@@ -301,6 +319,8 @@ def split_into_parts(text, mode="DOCUMENT", language=Languages.english):
         if next_line:
             lines.append("".join(next_line))
         return lines
+    elif mode == SPLIT_TEXT_CHUNKS:
+        return split_into_chunks(text)
     else:
         raise ValueError(f"Unknown {mode=}")
 
