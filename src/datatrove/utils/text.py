@@ -274,7 +274,7 @@ SPLIT_TEXT_WORDS = "WORDS"
 SPLIT_TEXT_CHUNKS = "CHUNKS"
 
 @lru_cache(5)
-def split_into_parts(text, mode="DOCUMENT", language=Languages.english):
+def split_into_parts(text, mode="DOCUMENT", language=Languages.english, min_length=1000):
     from datatrove.utils.word_tokenizers import load_word_tokenizer
 
     if mode == SPLIT_TEXT_DOCUMENTS:
@@ -305,7 +305,6 @@ def split_into_parts(text, mode="DOCUMENT", language=Languages.english):
         chunks = []
         current_chunk = []
         current_length = 0
-        min_length = 1000
         
         for line in text.split('\n'):
             if current_length >= min_length and current_chunk:
@@ -335,5 +334,5 @@ def split_into_paragraphs(text, language=Languages.english):
     return split_into_parts(text, mode=SPLIT_TEXT_PARAGRAPHS, language=language)
 
 
-def split_into_chunks(text, language=Languages.english):
-    return split_into_parts(text, mode=SPLIT_TEXT_CHUNKS, language=language)
+def split_into_chunks(text, language=Languages.english, min_length=1000):
+    return split_into_parts(text, mode=SPLIT_TEXT_CHUNKS, language=language, min_length=min_length)
