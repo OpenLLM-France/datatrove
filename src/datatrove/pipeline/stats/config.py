@@ -1,9 +1,7 @@
 from dataclasses import dataclass
-from typing import Literal
+from typing import Union, Literal
 
-
-GROUP = Literal["summary", "histogram", "fqdn", "suffix"]
-
+GROUP = Union[Literal["summary", "histogram", "fqdn", "suffix"], str]
 
 @dataclass(frozen=True)
 class TopKConfig:

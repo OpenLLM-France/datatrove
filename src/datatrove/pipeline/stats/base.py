@@ -83,6 +83,9 @@ class BaseStats(PipelineStep):
                 suffix = self.tld_extractor.extract_str(doc.metadata["url"]).suffix
                 doc.metadata["suffix"] = suffix
             return suffix, value
+        elif group_name in doc.metadata:
+            g = doc.metadata.get(group_name)
+            return g, value
         else:
             raise ValueError(f"Unknown group name: {group_name}")
 
