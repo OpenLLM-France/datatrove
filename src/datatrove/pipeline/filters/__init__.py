@@ -9,6 +9,5 @@ from .regex_filter import RegexFilter
 from .sampler_filter import SamplerFilter
 from .unigram_log_probs import UnigramLogProbFilter
 from .url_filter import URLFilter
-from .can_fetch_filter import CanFetchFilter
 from .perplexity_filter import PerplexityFilter
 from .extreme_tokenizer_filter import ExtremeTokenizerFilter
