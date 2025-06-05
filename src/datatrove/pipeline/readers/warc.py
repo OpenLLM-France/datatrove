@@ -51,6 +51,7 @@ class WarcReader(BaseDiskReader):
         recursive: bool = True,
         glob_pattern: str | None = None,
         shuffle_files: bool = False,
+        domain_subset: set | None = None
     ):
         self.compression = compression
         super().__init__(
@@ -68,6 +69,7 @@ class WarcReader(BaseDiskReader):
             glob_pattern,
             shuffle_files,
         )
+        self.domain_subset = domain_subset
 
     def read_file(self, filepath: str):
         from warcio.archiveiterator import ArchiveIterator
@@ -75,7 +77,7 @@ class WarcReader(BaseDiskReader):
         with self.data_folder.open(filepath, "rb", compression=self.compression) as f:
             for ri, record in enumerate(ArchiveIterator(f)):
                 with self.track_time():
-                    extracted_data = process_record(record)
+                    extracted_data = process_record(record, self.domain_subset)
                     if not extracted_data:
                         continue
                     document = self.get_document_from_dict(extracted_data, filepath, ri)
@@ -84,7 +86,7 @@ class WarcReader(BaseDiskReader):
                 yield document
 
 
-def process_record(record: "ArcWarcRecord") -> dict | None:
+def process_record(record: "ArcWarcRecord", domain_subset) -> dict | None:
     """Process a WARC record to extract the html and metadata (id, url, date)."""
     import cchardet
     import magic
@@ -93,6 +95,19 @@ def process_record(record: "ArcWarcRecord") -> dict | None:
     if record.rec_type != "response" and record.rec_type != "conversion":  # wet files have "conversion" type
         return
 
+    # Get url
+    url = record.rec_headers.get("WARC-Target-URI", None)
+    if not url:
+        url = dict(record.rec_headers.headers)["uri"]
+    if not url:
+        return 
+    
+    if domain_subset is not None:
+        import tldextract
+        fqdn = tldextract.extract(url).fqdn
+        if fqdn not in domain_subset:
+            return
+    
     # content type filtering
     mime_type = record.rec_headers.get("WARC-Identified-Payload-Type", None)
     if mime_type is not None and (
@@ -129,11 +144,7 @@ def process_record(record: "ArcWarcRecord") -> dict | None:
             return
 
     id_ = record.rec_headers["WARC-Record-ID"]
-    url = record.rec_headers.get("WARC-Target-URI", None)
     date = record.rec_headers.get("WARC-Date", None)
-    # handle older formats
-    if not url:
-        url = dict(record.rec_headers.headers)["uri"]
     if not date:
         date = dict(record.rec_headers.headers)["archive-date"]
 

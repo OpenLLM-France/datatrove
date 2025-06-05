@@ -46,9 +46,12 @@ class OpenWebMathFilter(BaseFilter):
         if data is None or data == "":
             return False, "no_text"
         original_match = self.original_regex.search(data)
+        doc.metadata["has_math"] = original_match is not None
         if original_match:
             return True
         latex_match = self.latex_regex.search(data)
+        doc.metadata["has_latex"] = latex_match is not None
+        doc.metadata["has_latex_math_commands"] = False
         text = ''
         if latex_match:
             data = data.replace('<template', '<div')
@@ -59,5 +62,6 @@ class OpenWebMathFilter(BaseFilter):
                                     alt_texts=False)
             for term in self.latex_math_commands:
                 if term in text:
+                    doc.metadata["has_latex_math_commands"] = True
                     return True
         return False, "no_math"

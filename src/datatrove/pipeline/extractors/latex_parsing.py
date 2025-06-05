@@ -2,7 +2,6 @@ import re
 import sys
 import time
 
-from resiliparse.extract.html2text import extract_plain_text
 from resiliparse.parse.html import HTMLTree, traverse_dom
 from resiliparse.process_guard import (ExecutionTimeout, InterruptType,
                                        MemoryLimitExceeded, mem_guard,

@@ -1,7 +1,7 @@
 import random
 from lxml import html
 from prettytable import PrettyTable
-from .latex_parsing import extract_plain_text, improve_latex_content_parsing
+from .latex_parsing import improve_latex_content_parsing
 from .base import BaseExtractor
 
 def html_table_to_ascii(headers, rows):
@@ -58,24 +58,14 @@ def process_tables(tree, format_choice=None):
         table.getparent().replace(table, new_element)
     return tree
 
-class MegamathExtractor(BaseExtractor):
-    name = "⛏ Megamath Extractor"
+class MegamathReformatter(BaseExtractor):
+    name = "⛏ Megamath Reformatter"
 
     def __init__(
         self,
-        favour_precision: bool = True,
-        include_images: bool = False,
         timeout: float = 1,
-        deduplicate: bool = True,
-        **kwargs,
     ):
         super().__init__(timeout)
-        self.favour_precision = favour_precision
-        self.include_images = include_images
-        self.deduplicate = deduplicate
-        self.kwargs = kwargs
-        if self.include_images:
-            raise NotImplementedError
 
     def extract(self, text: str) -> str:
         # ⚠️⚠️⚠️ reformat the html text by improving latex content rendering
@@ -89,12 +79,5 @@ class MegamathExtractor(BaseExtractor):
         except Exception as e:
             # print(f"Raise an exception {e} when dealing with tables")
             pass
+        return reformatted_html_doc
 
-        # ⚠️⚠️⚠️ extract texts from the html documents
-        result = extract_plain_text(
-            reformatted_html_doc,
-            alt_texts=False,
-            links=False,
-            preserve_formatting=True,
-        )
-        return result
