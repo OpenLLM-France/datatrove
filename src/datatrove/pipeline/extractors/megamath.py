@@ -1,7 +1,7 @@
 import random
 from lxml import html
 from prettytable import PrettyTable
-from .latex_parsing import improve_latex_content_parsing
+from datatrove.utils.latex_parsing import improve_latex_content_parsing
 from .base import BaseExtractor
 
 def html_table_to_ascii(headers, rows):
@@ -77,7 +77,37 @@ class MegamathReformatter(BaseExtractor):
                 tree, encoding="unicode", pretty_print=True
             )
         except Exception as e:
-            # print(f"Raise an exception {e} when dealing with tables")
             pass
         return reformatted_html_doc
+
+class MegamathExtractor(BaseExtractor):
+    name = "⛏ Megamath Extractor"
+
+    def __init__(
+        self,
+        timeout: float = 1,
+    ):
+        super().__init__(timeout)
+
+    def extract(self, text: str) -> str:
+        from resiliparse.extract.html2text import extract_plain_text
+        # ⚠️⚠️⚠️ reformat the html text by improving latex content rendering
+        reformatted_html_doc = improve_latex_content_parsing(text)
+        try:
+            tree = html.fromstring(reformatted_html_doc)
+            tree = process_tables(tree)
+            reformatted_html_doc = html.tostring(
+                tree, encoding="unicode", pretty_print=True
+            )
+        except Exception as e:
+            pass
+
+        # ⚠️⚠️⚠️ extract texts from the html documents
+        result = extract_plain_text(
+            reformatted_html_doc,
+            alt_texts=False,
+            links=False,
+            preserve_formatting=True,
+        )
+        return result
 
