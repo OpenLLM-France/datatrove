@@ -11,8 +11,8 @@ class PerplexityFilter(BaseFilter):
 
     def __init__(
         self,
-        language: str | None = None,
-        model_dataset: str = None,
+        language: str | None = "en",
+        model_dataset: str = "wikipedia",
         min_ppl: float = 10.,
         max_ppl: float = 1000.,
         exclusion_writer: DiskWriter = None,
