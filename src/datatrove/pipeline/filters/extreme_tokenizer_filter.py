@@ -3,6 +3,7 @@ from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from functools import cached_property
 import os
+from datatrove.utils.text import SPLIT_TEXT_DOCUMENTS, split_into_parts, split_into_chunks
 
 def load_tokenizer(name_or_path: str) -> "Tokenizer":
     from tokenizers import Tokenizer
@@ -24,12 +25,18 @@ class ExtremeTokenizerFilter(BaseFilter):
         min_length_chunk: int = 1000,
         min_token_per_char: float = 0.2,
         max_token_per_char: float = 0.38,
+        filter_mode: str = SPLIT_TEXT_DOCUMENTS,
+        label_only = False,
     ):
         super().__init__(exclusion_writer)
         self.tokenizer_name_or_path = tokenizer_name_or_path
+        if label_only:
+            min_token_per_char = 0.
+            max_token_per_char = float("inf")
         self.min_token_per_char = min_token_per_char
         self.max_token_per_char = max_token_per_char
         self.min_length_chunk = min_length_chunk # in number of characters
+        self.filter_mode = filter_mode
 
     @cached_property
     def tokenizer(self) -> "Tokenizer":
@@ -39,26 +46,26 @@ class ExtremeTokenizerFilter(BaseFilter):
         return tokenizer
     
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
-        from datatrove.utils.text import split_into_chunks
-        chunks = split_into_chunks(doc.text, min_length=self.min_length_chunk)
-
-        encoded_chunks = self.tokenizer.encode_batch(chunks)
+        units = split_into_parts(doc.text, mode=self.filter_mode)
+        encoded_chunks = self.tokenizer.encode_batch(units)
         token_lengths = [len(encoded_chunk.ids) for encoded_chunk in encoded_chunks]
 
-        kept_chunks = []
+        kept_spans = []
         doc.metadata["token_per_chars"] = []
-        # doc.metadata["bad_chunks"] = []
-        for chunk, token_length in zip(chunks, token_lengths):
-            if len(chunk) == 0:
+        for unit, token_length in zip(units, token_lengths):
+            if len(unit) == 0:
                 token_per_char = float('inf')
             else:
-                token_per_char = token_length / len(chunk)
+                token_per_char = token_length / len(unit)
             doc.metadata["token_per_chars"].append(token_per_char)
+            if self.min_token_per_char < token_per_char < self.max_token_per_char:
+                kept_spans.append(unit)
+                self.stat_update("kept_span")
             if (token_per_char < self.min_token_per_char) or (token_per_char > self.max_token_per_char):
-                # doc.metadata["bad_chunks"].append(chunk)
-                # if (not kept_chunks) or (kept_chunks[-1] != "<<removed_chunk>>"):
-                #     kept_chunks.append("<<removed_chunk>>")
-                continue
-            kept_chunks.append(chunk)
-        doc.text = '\n'.join(kept_chunks)
-        return True
+                self.stat_update("removed_span")
+        clean_text = "".join(kept_spans)
+        if clean_text.strip() == "":
+            return False
+        else:
+            doc.text = clean_text
+            return True

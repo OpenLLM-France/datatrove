@@ -47,6 +47,7 @@ class FastTextClassifierFilter(BaseFilter):
         exclusion_writer: DiskWriter | None = None,
         newline_replacement="",
         filter_mode: str = SPLIT_TEXT_DOCUMENTS,
+        filter_name = None,
     ):
         super().__init__(exclusion_writer)
         self.model_url = model_url
@@ -61,6 +62,7 @@ class FastTextClassifierFilter(BaseFilter):
         if remove_labels and isinstance(remove_labels[0], str):
             self.remove_labels = [remove_labels]
         self.save_labels_in_metadata = save_labels_in_metadata
+        self.filter_name = filter_name
         self._model = None
 
     @property
@@ -108,5 +110,8 @@ class FastTextClassifierFilter(BaseFilter):
                 self.stat_update("removed_span")
         doc.text = "".join(kept_spans)
         if self.save_labels_in_metadata:
-            doc.metadata.update({label: np.mean(scores).item() for label, scores in label_scores.items()})
+            if self.filter_name:
+                doc.metadata[self.filter_name] = {label: np.mean(scores).item() for label, scores in label_scores.items()}
+            else:
+                doc.metadata.update({label: np.mean(scores).item() for label, scores in label_scores.items()})
         return not not doc.text.strip()
