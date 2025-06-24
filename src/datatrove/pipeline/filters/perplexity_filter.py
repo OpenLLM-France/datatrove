@@ -12,6 +12,7 @@ class PerplexityFilter(BaseFilter):
     def __init__(
         self,
         language: str | None = "en",
+        language_from_metadata = False,
         model_dataset: str = "wikipedia",
         min_ppl: float = 10.,
         max_ppl: float = 1000.,
@@ -22,11 +23,27 @@ class PerplexityFilter(BaseFilter):
         self.label_only = label_only
         self.min_ppl = min_ppl
         self.max_ppl = max_ppl
-        self.model = KenlmModel(model_dataset=model_dataset, language=language)
+        self.language_from_metadata = language_from_metadata
+
+        if self.language_from_metadata:
+            self.models = {}
+            for language in ["en", "fr", "es", "ar", "pt"]:
+                self.models[language] = KenlmModel(model_dataset=model_dataset, language=language)
+        else:
+            self.model = KenlmModel(model_dataset=model_dataset, language=language)
 
     def filter(self, doc: Document) -> bool:
-        ppl = self.model.get_perplexity(doc.text)
-        doc.metadata[f"ccnet_perplexity_{self.model.language}"] = ppl
+        if self.language_from_metadata:
+            language = doc.metadata.get("language", None)
+            model = self.models.get(language, None)
+            if model:
+                ppl = self.models[language].get_perplexity(doc.text)
+            else:
+                return True
+        else:
+            model = self.model
+            ppl = model.get_perplexity(doc.text)
+        doc.metadata[f"ccnet_perplexity_{model.language}"] = ppl
 
         if self.label_only:
             return True
