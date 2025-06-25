@@ -33,7 +33,7 @@ class CreativeCommonsRegexLicenseFilter(BaseFilter):
 
     def filter(self, doc) -> bool | tuple[bool, str]:
         html = doc.text
-        doc.metadata["license"] = []
+        doc.metadata["licenses"] = []
 
         if not any(p in html for p in self.PRE_REGEX_SEARCH):
             return True
@@ -50,7 +50,7 @@ class CreativeCommonsRegexLicenseFilter(BaseFilter):
             # for each match. The first match has a confidence of 1.0, the second
             # has a confidence of 0.75, the third 0.667, the fourth 0.625, etc.
             score = 0.5 + 0.5 / (i + 1.0)
-            doc.metadata["license"].append({"type": f"cc_{license_string}", "score": score})
+            doc.metadata["licenses"].append({"type": f"cc_{license_string}", "score": score})
         return True
 
 
