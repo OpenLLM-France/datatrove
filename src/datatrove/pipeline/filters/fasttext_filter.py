@@ -108,10 +108,14 @@ class FastTextClassifierFilter(BaseFilter):
                 self.stat_update("kept_span")
             else:
                 self.stat_update("removed_span")
-        doc.text = "".join(kept_spans)
+        cleaned_text = "".join(kept_spans)
         if self.save_labels_in_metadata:
             if self.filter_name:
                 doc.metadata[self.filter_name] = {label: np.mean(scores).item() for label, scores in label_scores.items()}
             else:
                 doc.metadata.update({label: np.mean(scores).item() for label, scores in label_scores.items()})
-        return not not doc.text.strip()
+        if cleaned_text.strip() == "":
+            return False
+        else:
+            doc.text = cleaned_text
+            return True
