@@ -101,26 +101,33 @@ class PhoneNumberPII(BaseFormatter):
     The country code is set to US by default, but can be changed by passing a different country code.
 
     Example of country codes: "US", "GB", "FR", "DE", "IT", "ES", "PT", "NL"
+
+    country -- The country to assume for phone numbers not written in
+      international format (with a leading plus, or with the
+      international dialing prefix of the specified region). May be
+      None or "ZZ" if only numbers with a leading plus should be
+      considered.
     """
 
     def __init__(
         self,
-        country: str = "US",
+        countries: str | list[str] = "US",
         replacement: str = "<<pii_phone>>",
     ):
         super().__init__()
-        self.country = country
+        if isinstance(countries, str):
+            countries = [countries]
+        self.countries = countries
         self.replacement = replacement
 
     def format(self, text: str) -> str:
         import phonenumbers
-        matches = list(phonenumbers.PhoneNumberMatcher(text, self.country))
-        # Replace from the end to the beginning to avoid messing up indices
-        new_text = text
-        for m in reversed(matches):
-            new_text = new_text[:m.start] + self.replacement + new_text[m.end:]
-        return new_text
-    
+        for country in self.countries:
+            matches = list(phonenumbers.PhoneNumberMatcher(text, country))
+            for m in reversed(matches):
+                text = text[:m.start] + self.replacement + text[m.end:]
+        return text
+
 class MorePIIFormatter(BaseFormatter):
     """
     Replaces NIR in the document text.
