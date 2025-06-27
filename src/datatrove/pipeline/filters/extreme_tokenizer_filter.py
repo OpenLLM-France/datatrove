@@ -23,27 +23,24 @@ class ExtremeTokenizerFilter(BaseFilter):
         self,
         tokenizer_name_or_path: str | None = None,
         exclusion_writer: DiskWriter = None,
-        min_length_chunk: int = 1000,
-        min_token_per_char: float = 0.2,
         max_token_per_char: float = 0.38,
-        filter_mode: str = SPLIT_TEXT_DOCUMENTS,
         replace_span: str = "",
         removed_spans_in_metadata = False, # For debugging only
         threshold_removal = 0.5,
         label_only=False,
+        remove_digits=False,
+        **kwargs,
     ):
         super().__init__(exclusion_writer)
         self.tokenizer_name_or_path = tokenizer_name_or_path
         if label_only:
-            min_token_per_char = 0.
             max_token_per_char = float("inf")
-        self.min_token_per_char = min_token_per_char
         self.max_token_per_char = max_token_per_char
-        self.min_length_chunk = min_length_chunk # in number of characters
-        self.filter_mode = filter_mode
         self.replace_span = replace_span
         self.removed_spans_in_metadata = removed_spans_in_metadata
         self.threshold_removal = threshold_removal
+        self.remove_digits = remove_digits
+        self.kwargs = kwargs
 
     @cached_property
     def tokenizer(self) -> "Tokenizer":
@@ -54,35 +51,39 @@ class ExtremeTokenizerFilter(BaseFilter):
     
     def filter(self, doc: Document) -> bool | tuple[bool, str]:
         doc.text = doc.text.strip()
-        units = split_into_parts(doc.text, mode=self.filter_mode)
-        encoded_chunks = self.tokenizer.encode_batch(units)
+        units = split_into_parts(doc.text, **self.kwargs)
+        if self.remove_digits:
+            norm_units = [re.sub(r'\d+', '0', unit) for unit in units]
+        else:
+            norm_units = units
+        encoded_chunks = self.tokenizer.encode_batch(norm_units)
         token_lengths = [len(encoded_chunk.ids) for encoded_chunk in encoded_chunks]
 
         kept_spans = []
         removed_spans = []
         doc.metadata["token_per_chars"] = []
-        for unit, token_length in zip(units, token_lengths):
-            if len(unit) == 0:
-                token_per_char = float('inf')
-            else:
-                token_per_char = token_length / len(unit)
+        for unit, norm_unit, token_length in zip(units, norm_units, token_lengths):
+            # Calculate metric
+            token_per_char = token_length/ len(norm_unit)
+            # Save in metadata
             if self.removed_spans_in_metadata:
                 doc.metadata["token_per_chars"].append(token_per_char)
-            if self.min_token_per_char < token_per_char < self.max_token_per_char:
+            # Filter
+            if token_per_char < self.max_token_per_char:
                 kept_spans.append(unit)
                 self.stat_update("kept_span")
-            if (token_per_char < self.min_token_per_char) or (token_per_char > self.max_token_per_char):
+            else:
                 kept_spans.append("<<removed_span>>")
                 self.stat_update("removed_span")
-                removed_spans.append(unit)
+                removed_spans.append(norm_unit)
 
-        clean_text = "\n".join(kept_spans)
+        clean_text = "".join(kept_spans)
         if self.removed_spans_in_metadata:
             doc.metadata['removed_spans'] = removed_spans
         doc.metadata['num_removed_spans'] = len(removed_spans)
-        clean_text = re.sub(r'(<<removed_span>>\s*)+', self.replace_span, clean_text).strip()
-        if len(removed_spans)/len(units) >= self.threshold_removal:
+
+        if 1 - len(clean_text)/len(doc.text) >= self.threshold_removal:
             return False, "too_much_removed_span"
         else:
-            doc.text = clean_text
+            doc.text = re.sub(r'(<<removed_span>>\s*)+', self.replace_span, clean_text).strip()
             return True

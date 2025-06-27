@@ -11,10 +11,12 @@ class OCRoscopeFilter(BaseFilter):
     def __init__(
         self, 
         ocr_threshold: int = 80, 
+        label_only = False,
         exclusion_writer: DiskWriter = None
         ):
         super().__init__(exclusion_writer)
         self.ocr_threshold = ocr_threshold
+        self.label_only = label_only
 
     def filter(self, doc: Document) -> bool:
         # see https://github.com/aboSamoor/polyglot/issues/71#issuecomment-707997790
@@ -27,6 +29,8 @@ class OCRoscopeFilter(BaseFilter):
         ocr_quality, nonchar = ocr_estimate.ratio_segment, ocr_estimate.ratio_nonchar
         doc.metadata['ocr_quality'] = ocr_quality
         doc.metadata['nonchar'] = nonchar
+        if self.label_only:
+            return True
         if ocr_quality is None or ocr_quality < 80:
             return False, "ocr_quality"
         return True

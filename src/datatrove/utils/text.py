@@ -274,7 +274,7 @@ SPLIT_TEXT_WORDS = "WORDS"
 SPLIT_TEXT_CHUNKS = "CHUNKS"
 
 @lru_cache(5)
-def split_into_parts(text, mode="DOCUMENT", language=Languages.english, min_length=1000):
+def split_into_parts(text, mode="DOCUMENT", language=Languages.english, min_length=1000, separator='\n'):
     from datatrove.utils.word_tokenizers import load_word_tokenizer
 
     if mode == SPLIT_TEXT_DOCUMENTS:
@@ -301,22 +301,26 @@ def split_into_parts(text, mode="DOCUMENT", language=Languages.english, min_leng
         if next_line:
             lines.append("".join(next_line))
         return lines
-    elif mode == SPLIT_TEXT_CHUNKS:
+    elif mode == SPLIT_TEXT_CHUNKS:        
         chunks = []
         current_chunk = []
         current_length = 0
-        
-        for line in text.split('\n'):
+
+        for segment in text.split(separator):
+            # Reconstruct the full segment with separator if it's not the last one
+            part = segment + separator
+
             if current_length >= min_length and current_chunk:
-                chunks.append('\n'.join(current_chunk))
+                chunks.append(''.join(current_chunk))
                 current_chunk = []
                 current_length = 0
-            
-            current_chunk.append(line)
-            current_length += len(line) + 1  # +1 for the newline character
-        
+
+            current_chunk.append(part)
+            current_length += len(part)
+
         if current_chunk:
-            chunks.append('\n'.join(current_chunk))
+            chunks.append(''.join(current_chunk))
+
         return chunks
     else:
         raise ValueError(f"Unknown {mode=}")
