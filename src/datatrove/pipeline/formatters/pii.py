@@ -49,7 +49,7 @@ class PIIFormatter(BaseFormatter):
         ip_replacement same as email_replacement but for IP addresses
     """
 
-    name = "📞 PII"
+    name = "🥸 PII"
 
     def __init__(
         self,
@@ -93,7 +93,7 @@ class PIIFormatter(BaseFormatter):
         return text
 
 class PhoneNumberPII(BaseFormatter):
-    name = "📞 Phone Number PII"
+    name = "🥸 Phone Number PII"
     """"
     This filter uses the phonenumbers library to find and replace phone numbers in the text.
     It also stores the original phone numbers in the metadata of the document.
@@ -134,7 +134,7 @@ class MorePIIFormatter(BaseFormatter):
     Args:
     """
 
-    name = "💳 More PII"
+    name = "🥸 More PII"
 
     def __init__(
         self,
