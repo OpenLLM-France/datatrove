@@ -12,27 +12,32 @@ from datatrove.utils.text import TextNormConfig, simplify_text
 
 
 MODEL_REPO = "edugp/kenlm"
-
+CCNET_URL = "http://dl.fbaipublicfiles.com/cc_net/lm"
 
 class SentencePiece:
     def __init__(
         self,
         model_dataset: str,
         model_name: str,
+        ccnet = False,
     ):
         super().__init__()
         self.model_name = model_name
         self.model_dataset = model_dataset
         self._model = None
+        self.ccnet = ccnet
 
     @property
     def model(self):
         import sentencepiece
 
         if self._model is None:
-            path = cached_asset_path_or_download(
-                hf_hub_url(MODEL_REPO, str(Path(self.model_dataset, f"{self.model_name}.sp.model")))
-            )
+            if self.ccnet:
+                path = cached_asset_path_or_download(f"{CCNET_URL}/{self.model_name}.sp.model")
+            else:
+                path = cached_asset_path_or_download(
+                    hf_hub_url(MODEL_REPO, str(Path(self.model_dataset, f"{self.model_name}.sp.model")))
+                )
             self._model = sentencepiece.SentencePieceProcessor()
             self._model.load(path)
         return self._model
@@ -87,9 +92,11 @@ class KenlmModel:
         self,
         model_dataset: str,
         language: str,
+        ccnet = False,
     ):
         self.model_dataset = model_dataset
         self.language = language
+        self.ccnet = ccnet
         self._tokenizer = None
         self._model = None
 
@@ -98,15 +105,18 @@ class KenlmModel:
         import kenlm
 
         if self._model is None:
-            model_path = Path(self.model_dataset, f"{self.language}.arpa.bin")
-            path = cached_asset_path_or_download(hf_hub_url(MODEL_REPO, str(model_path)))
+            if self.ccnet:
+                path = cached_asset_path_or_download(f"{CCNET_URL}/{self.language}.arpa.bin")
+            else:
+                model_path = Path(self.model_dataset, f"{self.language}.arpa.bin")
+                path = cached_asset_path_or_download(hf_hub_url(MODEL_REPO, str(model_path)))
             self._model = kenlm.Model(path)
         return self._model
 
     @property
     def tokenizer(self):
         if self._tokenizer is None:
-            self._tokenizer = SentencePiece(self.model_dataset, self.language)
+            self._tokenizer = SentencePiece(self.model_dataset, self.language, self.ccnet)
         return self._tokenizer
 
     @classmethod
@@ -114,10 +124,12 @@ class KenlmModel:
         cls,
         model_dataset: str,
         language: str,
+        ccnet,
     ):
         return cls(
             model_dataset,
             language,
+            ccnet,
         )
 
     def pp(self, log_score, length):
