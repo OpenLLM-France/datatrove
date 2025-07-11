@@ -5,32 +5,44 @@ from typing import Callable
 
 from datatrove.pipeline.formatters.base import BaseFormatter
 
+import re
+from typing import Callable
+
 class PIIReplacer:
     def __init__(
-        self, regex: str, replacements: tuple[str, ...] | str, validator: Callable[[str], bool] | None = None
+        self,
+        regex: str,
+        replacements: tuple[str, ...] | str,
+        validator: Callable[[str], bool] | None = None
     ):
         self.regex: re.Pattern = re.compile(regex)
         self.replacements = (
             replacements
-            if type(replacements) is tuple
+            if isinstance(replacements, tuple)
             else (tuple(replacements) if not isinstance(replacements, str) else (replacements,))
         )
-        self.validator = validator  # extra validation for a match
+        self.validator = validator
         self._replace_i = 0
 
     def replace(self, text: str):
+        matches = []
+
         def get_replacement(matchobj):
-            if self.validator and not self.validator(matchobj.group(0)):
-                # not a valid match. replace with itself
-                return matchobj.group(0)
+            match_text = matchobj.group(0)
+            if self.validator and not self.validator(match_text):
+                return match_text
+            matches.append(match_text)
             replacement = self.replacements[self._replace_i]
             self._replace_i = (self._replace_i + 1) % len(self.replacements)
             return replacement
 
-        return self.regex.sub(get_replacement, text)
-
+        new_text = self.regex.sub(get_replacement, text)
+        return new_text, matches
 
 def public_ip_validator(ip, public_only: bool = True) -> bool:
+    pattern = r'^\d\.\d\.\d\.\d$'
+    if re.match(pattern, ip):
+        return False
     try:
         ip = ipaddress.ip_address(ip)
         return not public_only or ip.is_global
@@ -49,7 +61,7 @@ class PIIFormatter(BaseFormatter):
         ip_replacement same as email_replacement but for IP addresses
     """
 
-    name = "🥸 PII"
+    name = "🥸  PII"
 
     def __init__(
         self,
@@ -86,14 +98,23 @@ class PIIFormatter(BaseFormatter):
         )
 
     def format(self, text: str) -> str:
+        metadata = {}
         if self.remove_emails:
-            text = self.emails_replacer.replace(text)
+            text, removed = self.emails_replacer.replace(text)
+            if removed:
+                metadata["pii_email"] = removed
+            self.stat_update("pii_stats_email", value=len(removed))
         if self.remove_ips:
-            text = self.ip_replacer.replace(text)
-        return text
+            text, removed = self.ip_replacer.replace(text)      
+            if removed:
+                metadata["pii_ip"] = removed   
+            self.stat_update("pii_stats_ip", value=len(removed))
+        return text, metadata
 
 class PhoneNumberPII(BaseFormatter):
-    name = "🥸 Phone Number PII"
+    
+    name = "🥸  Phone Number PII"
+
     """"
     This filter uses the phonenumbers library to find and replace phone numbers in the text.
     It also stores the original phone numbers in the metadata of the document.
@@ -122,11 +143,17 @@ class PhoneNumberPII(BaseFormatter):
 
     def format(self, text: str) -> str:
         import phonenumbers
+        pii_phones = []
         for country in self.countries:
             matches = list(phonenumbers.PhoneNumberMatcher(text, country))
             for m in reversed(matches):
+                pii_phones.append(m.raw_string)
                 text = text[:m.start] + self.replacement + text[m.end:]
-        return text
+        metadata = {}
+        if pii_phones:
+            metadata["pii_phone"] = pii_phones
+            self.stat_update("pii_stats_phone", value=len(pii_phones))
+        return text, metadata
 
 class MorePIIFormatter(BaseFormatter):
     """
@@ -134,7 +161,7 @@ class MorePIIFormatter(BaseFormatter):
     Args:
     """
 
-    name = "🥸 More PII"
+    name = "🥸  More PII"
 
     def __init__(
         self,
@@ -165,7 +192,9 @@ class MorePIIFormatter(BaseFormatter):
 
     def format(self, text: str) -> str:
         if self.remove_nir:
-            text = self.nir_replacer.replace(text)
+            text, removed = self.nir_replacer.replace(text)
+            self.stat_update("pii_nir", value=len(removed))
         if self.remove_url:
-            text = self.url_replacer.replace(text)
+            text, removed = self.url_replacer.replace(text)
+            self.stat_update("pii_url", value=len(removed))
         return text

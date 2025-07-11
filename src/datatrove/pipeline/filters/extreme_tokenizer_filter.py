@@ -64,10 +64,8 @@ class ExtremeTokenizerFilter(BaseFilter):
         doc.metadata["token_per_chars"] = []
         for unit, norm_unit, token_length in zip(units, norm_units, token_lengths):
             # Calculate metric
-            token_per_char = token_length/ len(norm_unit)
-            # Save in metadata
-            if self.removed_spans_in_metadata:
-                doc.metadata["token_per_chars"].append(token_per_char)
+            token_per_char = token_length / len(norm_unit)
+            doc.metadata["token_per_chars"].append(token_per_char)
             # Filter
             if token_per_char < self.max_token_per_char:
                 kept_spans.append(unit)
