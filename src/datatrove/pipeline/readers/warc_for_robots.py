@@ -83,54 +83,38 @@ class WarcForRobotsReader(BaseDiskReader):
                         continue
                 yield document
 
-
 def process_record(record: "ArcWarcRecord") -> dict | None:
-    """Process a WARC record to extract the robots.txt content and metadata (id, url, date)."""
     import cchardet
-    import magic
 
-    # On ne garde que les réponses du serveur
     if record.rec_type != "response":
-        return
+        text = ""
+        error = "not response"
 
-    # Vérification du type MIME pour être sûr qu'on traite un fichier robots.txt (type texte)
-    mime_type = record.rec_headers.get("WARC-Identified-Payload-Type", None)
-    if mime_type is not None and mime_type != "text/plain":
-        return
+    url = record.rec_headers.get("WARC-Target-URI", "")
+    if not url or "/robots.txt" not in url.lower():
+        text = ""
+        error = "not robots.txt"
 
-    # On récupère les octets de la réponse (contenu brut)
     content_bytes = record.content_stream().read()
-    if mime_type is None:
-        # Si le type MIME est manquant, on essaie de le détecter
-        mime_type = magic.from_buffer(content_bytes, mime=True)
-        if mime_type != "text/plain":
-            return
 
-    # Décodage du contenu en texte brut
-    charset = "UTF-8"
     try:
-        text = content_bytes.decode(charset)
-    except UnicodeDecodeError:
-        encoding_det = cchardet.detect(content_bytes)["encoding"]
-        if not encoding_det or encoding_det == charset:
-            return
-        charset = encoding_det
-
+        text = content_bytes.decode("utf-8", errors="replace")
+        encoding = "utf-8"
+        error = ""
+    except Exception:
+        encoding = cchardet.detect(content_bytes).get("encoding") or "utf-8"
         try:
-            text = content_bytes.decode(charset)
-        except (UnicodeDecodeError, LookupError):
-            return
+            text = content_bytes.decode(encoding, errors="replace")
+            error = ""
+        except Exception as e:
+            text = ""
+            error = str(e)
 
-    # Récupération de l'ID, de l'URL et de la date
-    id_ = record.rec_headers["WARC-Record-ID"]
-    url = record.rec_headers.get("WARC-Target-URI", None)
-    date = record.rec_headers.get("WARC-Date", None)
-
-    # Au cas où les anciennes formats ne contiennent pas d'URL ou de date
-    if not url:
-        url = dict(record.rec_headers.headers)["uri"]
-    if not date:
-        date = dict(record.rec_headers.headers)["archive-date"]
-
-    # Retourner les informations avec l'URL, la date, l'ID, et le texte du robots.txt
-    return {"text": text, "url": url, "date": date, "id": id_}
+    return {
+        "text": text,
+        "url": url,
+        "id": record.rec_headers.get("WARC-Record-ID"),
+        "date": record.rec_headers.get("WARC-Date"),
+        "encoding": encoding,
+        "error": error,
+    }

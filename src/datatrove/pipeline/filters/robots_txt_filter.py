@@ -34,7 +34,7 @@ class RobotsTxtFilter(BaseFilter):
         self.robots_txt_dict = None
 
     def load_robots_txt(self) -> dict[str, str]:
-        """Load robots.txt rules from a folder into a dict keyed by FQDN."""
+        """Load robots.txt from a folder into a dict keyed by FQDN."""
         files = glob(os.path.join(self.robots_txt_path, '*.jsonl.gz'))
         out = {}
         for file in tqdm(files):
