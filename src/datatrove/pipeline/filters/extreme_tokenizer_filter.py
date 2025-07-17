@@ -3,8 +3,10 @@ from datatrove.data import Document
 from datatrove.pipeline.filters.base_filter import BaseFilter
 from functools import cached_property
 import os
-from datatrove.utils.text import SPLIT_TEXT_DOCUMENTS, split_into_parts, split_into_chunks
+from datatrove.utils.text import SPLIT_TEXT_DOCUMENTS, split_into_parts
 import re
+from loguru import logger
+from typing import List, Tuple
 
 def load_tokenizer(name_or_path: str) -> "Tokenizer":
     from tokenizers import Tokenizer
@@ -24,14 +26,17 @@ class ExtremeTokenizerFilter(BaseFilter):
         tokenizer_name_or_path: str | None = None,
         exclusion_writer: DiskWriter = None,
         max_token_per_char: float = 0.38,
+        mode: str = "CHUNKS",
+        separator: str = " ",
+        min_length: int = 1000,
         replace_span: str = "",
         removed_spans_in_metadata = False, # For debugging only
         threshold_removal = 0.5,
         label_only=False,
         remove_digits=False,
-        **kwargs,
+        batch_size=1,
     ):
-        super().__init__(exclusion_writer)
+        super().__init__(exclusion_writer, batch_size)
         self.tokenizer_name_or_path = tokenizer_name_or_path
         if label_only:
             max_token_per_char = float("inf")
@@ -40,7 +45,9 @@ class ExtremeTokenizerFilter(BaseFilter):
         self.removed_spans_in_metadata = removed_spans_in_metadata
         self.threshold_removal = threshold_removal
         self.remove_digits = remove_digits
-        self.kwargs = kwargs
+        self.mode = mode
+        self.separator = separator
+        self.min_length = min_length
 
     @cached_property
     def tokenizer(self) -> "Tokenizer":
@@ -49,22 +56,21 @@ class ExtremeTokenizerFilter(BaseFilter):
         tokenizer = load_tokenizer(self.tokenizer_name_or_path)
         return tokenizer
     
-    def filter(self, doc: Document) -> bool | tuple[bool, str]:
+    def filter(self, doc: Document, token_counts=None) -> bool | tuple[bool, str]:
         doc.text = doc.text.strip()
-        units = split_into_parts(doc.text, **self.kwargs)
-        if self.remove_digits:
-            norm_units = [re.sub(r'\d+', '0', unit) for unit in units]
-        else:
-            norm_units = units
-        encoded_chunks = self.tokenizer.encode_batch(norm_units)
-        token_lengths = [len(encoded_chunk.ids) for encoded_chunk in encoded_chunks]
+        units = split_into_parts(doc.text, self.mode, self.separator, self.min_length)
+
+        if token_counts is None:
+            encoded_chunks = self.tokenizer.encode_batch(units)
+            token_counts = [len(encoded_chunk.ids) for encoded_chunk in encoded_chunks]
+        doc.metadata["token_counts"] = token_counts
 
         kept_spans = []
         removed_spans = []
         doc.metadata["token_per_chars"] = []
-        for unit, norm_unit, token_length in zip(units, norm_units, token_lengths):
+        for unit, token_count in zip(units, token_counts):
             # Calculate metric
-            token_per_char = token_length / len(norm_unit)
+            token_per_char = token_count / len(unit)
             doc.metadata["token_per_chars"].append(token_per_char)
             # Filter
             if token_per_char < self.max_token_per_char:
@@ -73,7 +79,7 @@ class ExtremeTokenizerFilter(BaseFilter):
             else:
                 kept_spans.append("<<removed_span>>")
                 self.stat_update("removed_span")
-                removed_spans.append(norm_unit)
+                removed_spans.append(unit)
 
         clean_text = "".join(kept_spans)
         if self.removed_spans_in_metadata:
@@ -85,3 +91,19 @@ class ExtremeTokenizerFilter(BaseFilter):
         else:
             doc.text = re.sub(r'(<<removed_span>>\s*)+', self.replace_span, clean_text).strip()
             return True
+        
+    def filter_batch(self, batch: List[Document]) -> List[bool | Tuple[bool, str]]:
+        if self.batch_size == 1:
+            return list(map(self.filter, batch))
+        if self.batch_size > 1 and self.mode != SPLIT_TEXT_DOCUMENTS:
+            logger.warning(f"{self.batch_size=} > 1 only implemented for DOCUMENT split")
+            return list(map(self.filter, batch))
+        else:
+            results = []
+            encoded_texts = self.tokenizer.encode_batch([doc.text.strip() for doc in batch])
+            token_counts = [len(encoded_text.ids) for encoded_text in encoded_texts]
+
+            for doc, token_count in zip(batch, token_counts):
+                result = self.filter(doc, [token_count])
+                results.append(result)
+            return results
