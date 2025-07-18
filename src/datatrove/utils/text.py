@@ -319,7 +319,7 @@ def split_into_optimal_chunks(text, min_length, max_length=None, separators="\n.
         # Try to find the best separator
         scores = {}
         for sep in separators:
-            idx = text.rfind(sep, i + min_length - 1, end) if end is not None else text.find(sep, i + min_length - 1)
+            idx = text.find(sep, i + min_length - 1, end) if end is not None else text.find(sep, i + min_length - 1)
             if idx != -1:
                 if max_length:
                     # Prefer higher priority separator
