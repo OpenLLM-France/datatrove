@@ -58,6 +58,8 @@ class ExtremeTokenizerFilter(BaseFilter):
     
     def filter(self, doc: Document, token_counts=None) -> bool | tuple[bool, str]:
         doc.text = doc.text.strip()
+        if not doc.text:
+            return False, "empty_text"
         units = split_into_parts(doc.text, self.mode, self.separator, self.min_length)
 
         if token_counts is None:
@@ -69,6 +71,8 @@ class ExtremeTokenizerFilter(BaseFilter):
         removed_spans = []
         doc.metadata["token_per_chars"] = []
         for unit, token_count in zip(units, token_counts):
+            if not len(unit):
+                continue
             # Calculate metric
             token_per_char = token_count / len(unit)
             doc.metadata["token_per_chars"].append(token_per_char)
