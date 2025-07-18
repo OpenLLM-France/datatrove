@@ -274,7 +274,7 @@ SPLIT_TEXT_WORDS = "WORDS"
 SPLIT_TEXT_CHUNKS = "CHUNKS"
 
 @lru_cache(5)
-def split_into_parts(text, mode="DOCUMENT", language=Languages.english, min_length=1000, separator='\n'):
+def split_into_parts(text, mode="DOCUMENT", language=Languages.english, min_length=1000, max_length=2000, separator="\n., "):
     from datatrove.utils.word_tokenizers import load_word_tokenizer
 
     if mode == SPLIT_TEXT_DOCUMENTS:
@@ -301,29 +301,47 @@ def split_into_parts(text, mode="DOCUMENT", language=Languages.english, min_leng
         if next_line:
             lines.append("".join(next_line))
         return lines
-    elif mode == SPLIT_TEXT_CHUNKS:        
-        chunks = []
-        current_chunk = []
-        current_length = 0
-
-        for segment in text.split(separator):
-            # Reconstruct the full segment with separator if it's not the last one
-            part = segment + separator
-
-            if current_length >= min_length and current_chunk:
-                chunks.append(''.join(current_chunk))
-                current_chunk = []
-                current_length = 0
-
-            current_chunk.append(part)
-            current_length += len(part)
-
-        if current_chunk:
-            chunks.append(''.join(current_chunk))
-
-        return chunks
+    elif mode == SPLIT_TEXT_CHUNKS:
+        return split_into_optimal_chunks(text, min_length, max_length, separator)
     else:
         raise ValueError(f"Unknown {mode=}")
+
+@lru_cache(maxsize=None)
+def split_into_optimal_chunks(text, min_length, max_length=None, separators="\n., "):
+    """
+    Splits the text into chunks of length in a given range (max is optional), based on a list of possible separators (first is preferred, when max_length is specified).
+    """
+    chunks = []
+    i = 0
+    while i < len(text):
+        # Define the max search window
+        end = min(i + max_length, len(text)) if max_length else None
+        # Try to find the best separator
+        scores = {}
+        for sep in separators:
+            idx = text.rfind(sep, i + min_length - 1, end) if end is not None else text.find(sep, i + min_length - 1)
+            if idx != -1:
+                if max_length:
+                    # Prefer higher priority separator
+                    scores[idx + len(sep)] = 1
+                    break
+                else:
+                    # Prefer the first separator found
+                    scores[idx + len(sep)] = -idx
+
+        # Take the separator with the highest score
+        best_split = None
+        if scores:
+            best_split = max(scores, key=scores.get)
+        else:
+            # No suitable separator found, or separator too early
+            best_split = min(i + max_length, len(text)) if max_length else len(text)
+
+        chunk = text[i:best_split]
+        chunks.append(chunk)
+        i = best_split
+
+    return chunks
 
 
 def split_into_words(text, language=Languages.english):

@@ -10,17 +10,19 @@ class SplitDocument(PipelineStep):
     def __init__(
         self,
         mode: str = "CHUNKS",
-        separator: str = " ",
+        separator:  str = "\n., ",
         min_length: int = 1000,
+        max_length: int = 2000,
     ):
         super().__init__()
         self.mode = mode
         self.separator = separator
         self.min_length = min_length
+        self.max_length = max_length
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         for doc in data:
-            units = split_into_parts(doc.text, mode=self.mode, separator=self.separator, min_length=self.min_length)
+            units = split_into_parts(doc.text, mode=self.mode, separator=self.separator, min_length=self.min_length, max_length=self.max_length)
             doc.text = doc.text.strip()
             doc.metadata["chunk_count"] = len(units)
             doc.metadata["initial_length"] = len(doc.text)
