@@ -29,7 +29,8 @@ class ExtremeTokenizerFilter(BaseFilter):
         mode: str = "CHUNKS",
         separator: str = " ",
         min_length: int = 1000,
-        replace_span: str = "",
+        max_length: int = None,
+        replace_span: str = "\n\n[...]\n\n",
         removed_spans_in_metadata = False, # For debugging only
         threshold_removal = 0.5,
         label_only=False,
@@ -48,6 +49,7 @@ class ExtremeTokenizerFilter(BaseFilter):
         self.mode = mode
         self.separator = separator
         self.min_length = min_length
+        self.max_length = max_length
 
     @cached_property
     def tokenizer(self) -> "Tokenizer":
@@ -60,7 +62,7 @@ class ExtremeTokenizerFilter(BaseFilter):
         doc.text = doc.text.strip()
         if not doc.text:
             return False, "empty_text"
-        units = split_into_parts(doc.text, self.mode, self.separator, self.min_length)
+        units = split_into_parts(doc.text, self.mode, self.separator, self.min_length, self.max_length)
 
         if token_counts is None:
             encoded_chunks = self.tokenizer.encode_batch(units)
