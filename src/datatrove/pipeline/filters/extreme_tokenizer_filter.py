@@ -31,11 +31,11 @@ class ExtremeTokenizerFilter(BaseFilter):
         min_length: int = 1000,
         max_length: int = None,
         replace_span: str = "\n\n[...]\n\n",
-        removed_spans_in_metadata = False, # For debugging only
-        threshold_removal = 0.5,
-        label_only=False,
-        remove_digits=False,
-        batch_size=1,
+        removed_spans_in_metadata: bool = False, # For debugging only
+        threshold_removal: float = 0.5,
+        label_only: bool = False,
+        normalize_digits: bool = False,
+        batch_size: int = 1,
     ):
         super().__init__(exclusion_writer, batch_size)
         self.tokenizer_name_or_path = tokenizer_name_or_path
@@ -45,7 +45,7 @@ class ExtremeTokenizerFilter(BaseFilter):
         self.replace_span = replace_span
         self.removed_spans_in_metadata = removed_spans_in_metadata
         self.threshold_removal = threshold_removal
-        self.remove_digits = remove_digits
+        self.normalize_digits = normalize_digits
         self.mode = mode
         self.separator = separator
         self.min_length = min_length
@@ -65,18 +65,22 @@ class ExtremeTokenizerFilter(BaseFilter):
         units = split_into_parts(doc.text, self.mode, self.separator, self.min_length, self.max_length)
 
         if token_counts is None:
-            encoded_chunks = self.tokenizer.encode_batch(units)
+            norm_units = [self._normalize_digits(unit) for unit in units]
+            encoded_chunks = self.tokenizer.encode_batch(norm_units)
             token_counts = [len(encoded_chunk.ids) for encoded_chunk in encoded_chunks]
         doc.metadata["token_counts"] = token_counts
 
         kept_spans = []
         removed_spans = []
+        doc.metadata["char_counts"] = []
         doc.metadata["token_per_chars"] = []
         for unit, token_count in zip(units, token_counts):
             if not len(unit):
                 continue
             # Calculate metric
-            token_per_char = token_count / len(unit)
+            length = len(unit)
+            token_per_char = token_count / length
+            doc.metadata["char_counts"].append(length)
             doc.metadata["token_per_chars"].append(token_per_char)
             # Filter
             if token_per_char < self.max_token_per_char:
@@ -106,10 +110,16 @@ class ExtremeTokenizerFilter(BaseFilter):
             return list(map(self.filter, batch))
         else:
             results = []
-            encoded_texts = self.tokenizer.encode_batch([doc.text.strip() for doc in batch])
+            encoded_texts = self.tokenizer.encode_batch([self._normalize_digits(doc.text.strip()) for doc in batch])
             token_counts = [len(encoded_text.ids) for encoded_text in encoded_texts]
 
             for doc, token_count in zip(batch, token_counts):
                 result = self.filter(doc, [token_count])
                 results.append(result)
             return results
+
+    def _normalize_digits(self, text):
+        if self.normalize_digits:
+            return re.sub(r'\d+', '0', text)
+        else:
+            return text
