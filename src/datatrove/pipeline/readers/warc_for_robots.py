@@ -1,8 +1,9 @@
 from typing import TYPE_CHECKING, Callable, Literal
 
-from datatrove.io import DataFileLike, DataFolderLike
+from datatrove.io import DataFileLike, DataFolderLike, get_datafolder
 from datatrove.pipeline.readers.base import BaseDiskReader
-
+from datatrove.pipeline.base import PipelineStep
+from datatrove.data import DocumentsPipeline
 
 if TYPE_CHECKING:
     from warcio.recordloader import ArcWarcRecord
@@ -85,17 +86,26 @@ class WarcForRobotsReader(BaseDiskReader):
 
 def process_record(record: "ArcWarcRecord") -> dict | None:
     import cchardet
+    import magic
+    import tldextract
 
-    if record.rec_type != "response":
+    content_bytes = record.content_stream().read()
+
+    mime_type = record.rec_headers.get("WARC-Identified-Payload-Type", None)
+    if mime_type is None:
+        mime_type = magic.from_buffer(content_bytes, mime=True)
+    rec_type = record.rec_type
+
+    if rec_type != "response":
         text = ""
         error = "not response"
 
     url = record.rec_headers.get("WARC-Target-URI", "")
+    fqdn = tldextract.extract(url).fqdn
+
     if not url or "/robots.txt" not in url.lower():
         text = ""
         error = "not robots.txt"
-
-    content_bytes = record.content_stream().read()
 
     try:
         text = content_bytes.decode("utf-8", errors="replace")
@@ -112,9 +122,51 @@ def process_record(record: "ArcWarcRecord") -> dict | None:
 
     return {
         "text": text,
+        "fqdn": fqdn,
         "url": url,
         "id": record.rec_headers.get("WARC-Record-ID"),
         "date": record.rec_headers.get("WARC-Date"),
         "encoding": encoding,
+        "mime_type": mime_type,
+        "rec_type": rec_type,
         "error": error,
     }
+
+
+class RobotsMerger(PipelineStep):
+    def __init__(self, input_folder: DataFolderLike, output_folder: DataFolderLike):
+        super().__init__()
+        self.input_folder = input_folder
+        self.output_folder = output_folder
+        self.robotstxt_dict = {}
+
+    def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
+        import gzip
+        import orjson
+        from dateutil import parser
+        import os
+        from pathlib import Path
+        import tldextract
+
+        input_path = Path(self.input_folder)
+
+        for filepath in input_path.glob("*.jsonl.gz"):
+            with gzip.open(filepath, "rt", encoding="utf-8") as gzfile:
+                print(f"Reading {filepath}")
+                for line in gzfile:
+                    data = orjson.loads(line)
+                    text = data['text']
+                    metadata = data['metadata']
+                    fqdn = tldextract.extract(metadata['url']).fqdn 
+                    date = metadata['date']
+
+                    stored = self.robotstxt_dict.get(fqdn)
+                    if stored is None or parser.parse(date) > parser.parse(stored["date"]):
+                        self.robotstxt_dict[fqdn] = {"text": text, "date": date}
+
+        # Save robots_dict to a jsonl file using orjson
+        os.makedirs(self.output_folder, exist_ok=True)
+        with open(os.path.join(self.output_folder, "robotstxt_dict.jsonl"), "wb") as out_f:
+            for key, value in self.robotstxt_dict.items():
+                line = orjson.dumps({"key": key, "value": value}) + b"\n"
+                out_f.write(line)
