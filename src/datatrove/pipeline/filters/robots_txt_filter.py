@@ -10,17 +10,6 @@ from typing import List, Dict, Any
 from tqdm import tqdm
 import os
 
-def read_jsonl_gz(file_path: str) -> List[Dict[str, Any]]:
-    """Read a .jsonl.gz file and return a list of JSON objects."""
-    data = {}
-    with gzip.open(file_path, 'rt', encoding='utf-8') as f:
-        for line in f:
-            datum = json.loads(line)
-            text = datum['text']
-            fqdn = tldextract.extract(datum['metadata']['url']).fqdn
-            data[fqdn] = text
-    return data
-
 class RobotsTxtFilter(BaseFilter):
     name = "🤖🚫 Check robots.txt"
 
@@ -31,16 +20,16 @@ class RobotsTxtFilter(BaseFilter):
     ):
         super().__init__(exclusion_writer)
         self.robots_txt_path = robots_txt_path
+        assert self.robots_txt_path.endswith('.jsonl'), "robots_txt_path should be a .jsonl"
         self.robots_txt_dict = None
 
     def load_robots_txt(self) -> dict[str, str]:
-        """Load robots.txt from a folder into a dict keyed by FQDN."""
-        files = glob(os.path.join(self.robots_txt_path, '*.jsonl.gz'))
-        out = {}
-        for file in tqdm(files):
-            data = read_jsonl_gz(file)
-            out.update(data)
-        return out
+        data = {}
+        with open(self.robots_txt_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                info = json.loads(line)
+                data[info["fqdn"]] = info["text"]
+        return data
 
     def get_robots_txt_dict(self):
         if self.robots_txt_dict is None:

@@ -166,5 +166,5 @@ class RobotsMerger(PipelineStep):
         os.makedirs(self.output_folder, exist_ok=True)
         with open(os.path.join(self.output_folder, "robotstxt_dict.jsonl"), "wb") as out_f:
             for key, value in self.robotstxt_dict.items():
-                line = orjson.dumps({"key": key, "value": value}) + b"\n"
+                line = orjson.dumps({"fqdn": key, **value}) + b"\n"
                 out_f.write(line)
