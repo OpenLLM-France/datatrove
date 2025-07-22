@@ -91,34 +91,33 @@ def process_record(record: "ArcWarcRecord") -> dict | None:
 
     content_bytes = record.content_stream().read()
 
-    mime_type = record.rec_headers.get("WARC-Identified-Payload-Type", None)
-    if mime_type is None:
-        mime_type = magic.from_buffer(content_bytes, mime=True)
     rec_type = record.rec_type
-
     if rec_type != "response":
-        text = ""
-        error = "not response"
+        return
 
     url = record.rec_headers.get("WARC-Target-URI", "")
     fqdn = tldextract.extract(url).fqdn
-
     if not url or "/robots.txt" not in url.lower():
-        text = ""
-        error = "not robots.txt"
+        return
 
     try:
         text = content_bytes.decode("utf-8", errors="replace")
         encoding = "utf-8"
-        error = ""
     except Exception:
         encoding = cchardet.detect(content_bytes).get("encoding") or "utf-8"
         try:
             text = content_bytes.decode(encoding, errors="replace")
-            error = ""
         except Exception as e:
-            text = ""
-            error = str(e)
+            text = f"# {str(e)}"
+
+    mime_type = record.rec_headers.get("WARC-Identified-Payload-Type", None)
+    if mime_type is None:
+        mime_type = magic.from_buffer(content_bytes, mime=True)
+    if "html" in mime_type:
+        text = "# html"
+
+    if text == "":
+        text = "# empty"
 
     return {
         "text": text,
@@ -129,7 +128,6 @@ def process_record(record: "ArcWarcRecord") -> dict | None:
         "encoding": encoding,
         "mime_type": mime_type,
         "rec_type": rec_type,
-        "error": error,
     }
 
 
