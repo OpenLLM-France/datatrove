@@ -274,7 +274,7 @@ SPLIT_TEXT_WORDS = "WORDS"
 SPLIT_TEXT_CHUNKS = "CHUNKS"
 
 @lru_cache(5)
-def split_into_parts(text, mode="DOCUMENT", language=Languages.english, min_length=1000, max_length=2000, separator="\n., "):
+def split_into_parts(text, mode="DOCUMENT", language=Languages.english, min_length=1000, max_length=2000, separator=("\n", ". ", ", ", " ")):
     from datatrove.utils.word_tokenizers import load_word_tokenizer
 
     if mode == SPLIT_TEXT_DOCUMENTS:
@@ -307,7 +307,7 @@ def split_into_parts(text, mode="DOCUMENT", language=Languages.english, min_leng
         raise ValueError(f"Unknown {mode=}")
 
 @lru_cache(maxsize=None)
-def split_into_optimal_chunks(text, min_length, max_length=None, separators="\n., "):
+def split_into_optimal_chunks(text, min_length, max_length=None, separators=["\n", ". ", ", ", " "]):
     """
     Splits the text into chunks of length in a given range (max is optional), based on a list of possible separators (first is preferred, when max_length is specified).
     """

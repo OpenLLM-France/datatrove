@@ -27,7 +27,7 @@ class ExtremeTokenizerFilter(BaseFilter):
         exclusion_writer: DiskWriter = None,
         max_token_per_char: float = 0.38,
         mode: str = "CHUNKS",
-        separator: str = " ",
+        separator: str | tuple[str] = " ",
         min_length: int = 1000,
         max_length: int = None,
         replace_span: str = "\n\n[...]\n\n",
@@ -47,6 +47,8 @@ class ExtremeTokenizerFilter(BaseFilter):
         self.threshold_removal = threshold_removal
         self.normalize_digits = normalize_digits
         self.mode = mode
+        if isinstance(separator, str):
+            separator = (separator, )
         self.separator = separator
         self.min_length = min_length
         self.max_length = max_length
@@ -62,7 +64,14 @@ class ExtremeTokenizerFilter(BaseFilter):
         doc.text = doc.text.strip()
         if not doc.text:
             return False, "empty_text"
-        units = split_into_parts(doc.text, self.mode, self.separator, self.min_length, self.max_length)
+        units = split_into_parts(
+            doc.text, 
+            self.mode, 
+            language = None, 
+            min_length = self.min_length, 
+            max_length = self.max_length,
+            separator = self.separator
+        )
 
         if token_counts is None:
             norm_units = [self._normalize_digits(unit) for unit in units]
