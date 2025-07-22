@@ -135,25 +135,26 @@ class NGramsDecontIndexer(PipelineStep):
                     self.compute_hashes(doc.text, doc.metadata.get("query", None))
                 )
 
-        # parse data from lighteval defined tasks
-        from lighteval.tasks.lighteval_task import LightevalTask
-        from lighteval.tasks.registry import Registry
+        else:
+            # parse data from lighteval defined tasks
+            from lighteval.tasks.lighteval_task import LightevalTask
+            from lighteval.tasks.registry import Registry
 
-        task_dict = Registry(cache_dir=os.getenv("HF_HOME"), custom_tasks=self.custom_lighteval_tasks).get_task_dict(
-            self.lighteval_tasks
-        )
-        LightevalTask.load_datasets(task_dict.values())
+            task_dict = Registry(cache_dir=os.getenv("HF_HOME"), custom_tasks=self.custom_lighteval_tasks).get_task_dict(
+                self.lighteval_tasks
+            )
+            LightevalTask.load_datasets(task_dict.values())
 
-        for task_name, task in task_dict.items():
-            for eval_doc in task.eval_docs():
-                try:
-                    golds = eval_doc.get_golds()
-                    query = eval_doc.query
-                except Exception as e:
-                    logger.warning(f"Error while fetching doc data: {e}")
-                    continue
-                for gold in golds:
-                    hashes[task_name].update(self.compute_hashes(gold, query))
+            for task_name, task in task_dict.items():
+                for eval_doc in task.eval_docs():
+                    try:
+                        golds = eval_doc.get_golds()
+                        query = eval_doc.query
+                    except Exception as e:
+                        logger.warning(f"Error while fetching doc data: {e}")
+                        continue
+                    for gold in golds:
+                        hashes[task_name].update(self.compute_hashes(gold, query))
 
         for task_name, task_hashes in hashes.items():
             hashes_array = np.array(list(task_hashes), dtype=self.config.hash_config.np_descr)
