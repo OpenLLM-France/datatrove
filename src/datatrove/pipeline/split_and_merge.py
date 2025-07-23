@@ -12,12 +12,14 @@ class SplitDocument(PipelineStep):
     def __init__(
         self,
         mode: str = "CHUNKS",
-        separator:  str = "\n., ",
+        separator:  str | tuple[str] = ("\n", ".", ",", " "),
         min_length: int = 1000,
         max_length: int = 2000,
     ):
         super().__init__()
         self.mode = mode
+        if isinstance(separator, str):
+            separator = (separator, )
         self.separator = separator
         self.min_length = min_length
         self.max_length = max_length

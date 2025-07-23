@@ -307,7 +307,7 @@ def split_into_parts(text, mode="DOCUMENT", language=Languages.english, min_leng
         raise ValueError(f"Unknown {mode=}")
 
 @lru_cache(maxsize=None)
-def split_into_optimal_chunks(text, min_length, max_length=None, separators=["\n", ". ", ", ", " "]):
+def split_into_optimal_chunks(text, min_length, max_length=None, separators: tuple[str] =("\n", ". ", ", ", " ")):
     """
     Splits the text into chunks of length in a given range (max is optional), based on a list of possible separators (first is preferred, when max_length is specified).
     """
