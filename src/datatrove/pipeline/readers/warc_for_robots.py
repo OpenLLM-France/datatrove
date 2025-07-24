@@ -1,9 +1,15 @@
 from typing import TYPE_CHECKING, Callable, Literal
 
-from datatrove.io import DataFileLike, DataFolderLike, get_datafolder
+from datatrove.io import DataFileLike, DataFolderLike
 from datatrove.pipeline.readers.base import BaseDiskReader
 from datatrove.pipeline.base import PipelineStep
 from datatrove.data import DocumentsPipeline
+from dateutil import parser
+from pathlib import Path
+import tldextract
+import gzip
+import orjson
+import os
 
 if TYPE_CHECKING:
     from warcio.recordloader import ArcWarcRecord
@@ -137,15 +143,9 @@ class RobotsMerger(PipelineStep):
         self.input_folder = input_folder
         self.output_folder = output_folder
         self.robotstxt_dict = {}
+        self.tld_extractor = tldextract.TLDExtract()
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
-        import gzip
-        import orjson
-        from dateutil import parser
-        import os
-        from pathlib import Path
-        import tldextract
-
         input_path = Path(self.input_folder)
 
         for filepath in input_path.glob("*.jsonl.gz"):
@@ -155,7 +155,7 @@ class RobotsMerger(PipelineStep):
                     data = orjson.loads(line)
                     text = data['text']
                     metadata = data['metadata']
-                    fqdn = tldextract.extract(metadata['url']).fqdn 
+                    fqdn = self.tld_extractor(url).fqdn
                     date = metadata['date']
 
                     stored = self.robotstxt_dict.get(fqdn)
