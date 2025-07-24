@@ -7,7 +7,6 @@ import urllib.robotparser
 import tldextract
 import json
 import os
-from collections import Counter
 
 class RobotsTxtReducer(PipelineStep):
     def __init__(self, robots_txt_path: str, output_path: str):
@@ -17,12 +16,12 @@ class RobotsTxtReducer(PipelineStep):
         self.tld_extractor = tldextract.TLDExtract()
 
     def run(self, data: DocumentsPipeline, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
-        fqdn_counter = Counter()
+        fqdn_set = set()
         for doc in data:
             with self.track_time():
                 url = doc.metadata['url']
                 fqdn = self.tld_extractor(url).fqdn
-                fqdn_counter[fqdn] += 1
+                fqdn_set.add(fqdn)
             yield doc
 
         os.makedirs(self.output_path, exist_ok=True)
@@ -30,7 +29,7 @@ class RobotsTxtReducer(PipelineStep):
              open(os.path.join(self.output_path, "robotstxt_dict.jsonl"), "w", encoding="utf-8") as fout:
             for line in fin:
                 entry = json.loads(line)
-                if entry["fqdn"] in fqdn_counter:
+                if entry["fqdn"] in fqdn_set:
                     fout.write(json.dumps(entry) + "\n")
 
 class RobotsTxtFilter(BaseFilter):
