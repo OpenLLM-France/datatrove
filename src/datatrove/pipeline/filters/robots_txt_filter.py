@@ -69,9 +69,12 @@ class RobotsTxtFilter(BaseFilter):
             return False, "robots_txt_not_found"
         
         # Initialize the robot parser
-        rp = urllib.robotparser.RobotFileParser()
-        rp.parse(robots_txt.splitlines())
-        can_fetch = rp.can_fetch("CCBot", url)
+        try: # Only for malformed robots.txt - extremely rare
+            rp = urllib.robotparser.RobotFileParser()
+            rp.parse(robots_txt.splitlines())
+            can_fetch = rp.can_fetch("CCBot", url)
+        except ValueError:
+            return True
 
         if not can_fetch:
             return False, 'robots_txt_disallow'
