@@ -41,6 +41,14 @@ class VLLMServer(InferenceServer):
             "--disable-log-requests",  # Disable verbose request logging
             "--disable-uvicorn-access-log",
         ]
+        if self.config.chat_template is not None:
+            cmd.extend(
+                [
+                    "--no-trust-request-chat-template", 
+                    "--chat-template",
+                    self.config.chat_template,
+                ]
+            )
 
         model_kwargs = self.config.model_kwargs.copy() if self.config.model_kwargs else {}
         # parallelism settings

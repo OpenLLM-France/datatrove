@@ -179,6 +179,7 @@ class InferenceConfig:
     use_chat: bool = True
     model_kwargs: dict | None = None
     server_log_folder: str | None = None
+    chat_template: str | None = None
 
     def __post_init__(self):
         if self.max_concurrent_tasks is None:
