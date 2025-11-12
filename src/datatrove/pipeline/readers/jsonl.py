@@ -48,6 +48,7 @@ class JsonlReader(BaseDiskReader):
         recursive: bool = True,
         glob_pattern: str | None = None,
         shuffle_files: bool = False,
+        order_files = None,
     ):
         super().__init__(
             data_folder,
@@ -63,6 +64,7 @@ class JsonlReader(BaseDiskReader):
             recursive,
             glob_pattern,
             shuffle_files,
+            order_files,
         )
         self.compression = compression
 
@@ -78,9 +80,9 @@ class JsonlReader(BaseDiskReader):
                             document = self.get_document_from_dict(orjson.loads(line), filepath, li)
                             if not document:
                                 continue
-                        except (EOFError, JSONDecodeError) as e:
+                        except JSONDecodeError as e:
                             logger.warning(f"Error when reading `{filepath}`: {e}")
                             continue
                     yield document
-            except UnicodeDecodeError as e:
+            except (EOFError, UnicodeDecodeError) as e:
                 logger.warning(f"File `{filepath}` may be corrupted: raised UnicodeDecodeError ({e})")

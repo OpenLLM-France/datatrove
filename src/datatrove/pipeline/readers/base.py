@@ -139,6 +139,7 @@ class BaseDiskReader(BaseReader):
         recursive: bool = True,
         glob_pattern: str | None = None,
         shuffle_files: bool = False,
+        order_files = None,
     ):
         super().__init__(limit, skip, adapter, text_key, id_key, default_metadata)
         self.data_folder = get_datafolder(data_folder)
@@ -146,6 +147,7 @@ class BaseDiskReader(BaseReader):
         self.recursive = recursive
         self.glob_pattern = glob_pattern
         self.shuffle_files = shuffle_files
+        self.order_files = order_files
         self.file_progress = file_progress
         self.doc_progress = doc_progress
 
@@ -234,6 +236,8 @@ class BaseDiskReader(BaseReader):
 
         if self.shuffle_files:
             random.shuffle(files_shard)
+        if self.order_files is not None:
+            files_shard = self.order_files(files_shard)
         for doc in self.read_files_shard(files_shard):
             self.update_doc_stats(doc)
             yield doc
