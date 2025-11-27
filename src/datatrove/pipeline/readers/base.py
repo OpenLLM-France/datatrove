@@ -190,25 +190,32 @@ class BaseDiskReader(BaseReader):
             ) as doc_pbar,
             tqdm(total=len(shard), desc="File progress", unit="file", disable=not self.file_progress) as file_pbar,
         ):
+            from huggingface_hub.utils import HfHubHTTPError
+
             for i, filepath in enumerate(shard):
                 self.stat_update("input_files")
                 logger.info(f"Reading input file {filepath}, {i+1}/{len(shard)}")
                 di = 0
                 ndocs = 0
-                for di, document in enumerate(self.read_file(filepath)):
-                    if skipped < self.skip:
-                        skipped += 1
-                        continue
+                
+                try:
+                    for di, document in enumerate(self.read_file(filepath)):
+                        if skipped < self.skip:
+                            skipped += 1
+                            continue
+                        if self.limit != -1 and li >= self.limit:
+                            break
+                        yield document
+                        doc_pbar.update()
+                        li += 1
+                        ndocs += 1
+                    file_pbar.update()
+                    self.stat_update("documents", value=ndocs, unit="input_file")
                     if self.limit != -1 and li >= self.limit:
                         break
-                    yield document
-                    doc_pbar.update()
-                    li += 1
-                    ndocs += 1
-                file_pbar.update()
-                self.stat_update("documents", value=ndocs, unit="input_file")
-                if self.limit != -1 and li >= self.limit:
-                    break
+                except HfHubHTTPError as e:
+                    print(f"Skip HfHubHTTPError for filepath {filepath}:\n{e}")
+
 
     def run(self, data: DocumentsPipeline = None, rank: int = 0, world_size: int = 1) -> DocumentsPipeline:
         """
