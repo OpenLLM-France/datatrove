@@ -8,4 +8,5 @@ from datatrove.pipeline.stats.paragraph_stats import ParagraphStats
 from datatrove.pipeline.stats.perplexity_stats import CCNetPerplexityStats
 from datatrove.pipeline.stats.sentence_stats import SentenceStats
 from datatrove.pipeline.stats.token_stats import TokenStats
+from datatrove.pipeline.stats.tool_stats import ToolStats
 from datatrove.pipeline.stats.word_stats import WordStats
