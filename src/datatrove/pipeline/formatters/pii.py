@@ -111,35 +111,57 @@ class PIIFormatter(BaseFormatter):
             self.stat_update("pii_stats_ip", value=len(removed))
         return text, metadata
 
+# Default per-country phone replacements, format-preserving: a number written
+# in international form (leading "+" or IDD "00") is masked with the matching
 class PhoneNumberPII(BaseFormatter):
-    
+
     name = "🥸  Phone Number PII"
 
     """"
     This filter uses the phonenumbers library to find and replace phone numbers in the text.
     It also stores the original phone numbers in the metadata of the document.
-    The replacement text is <<pii_phone_number>> by default.
-    The country code is set to US by default, but can be changed by passing a different country code.
 
     Example of country codes: "US", "GB", "FR", "DE", "IT", "ES", "PT", "NL"
 
-    country -- The country to assume for phone numbers not written in
-      international format (with a leading plus, or with the
-      international dialing prefix of the specified region). May be
-      None or "ZZ" if only numbers with a leading plus should be
-      considered.
+    countries -- The country/countries to assume for phone numbers not written
+      in international format (with a leading plus, or with the international
+      dialing prefix of the specified region). May be None or "ZZ" if only
+      numbers with a leading plus should be considered.
+
+    mask_digits -- if True (default), mask each match in place: keep the
+      international country-code prefix ("+33" / "0033") if the number was
+      written internationally, replace every other digit with "x", and keep the
+      original separators (spaces / dots / dashes / parentheses). A national
+      number (no written country code) has all its digits masked. So
+      "+33 6 11 22 33 44" -> "+33 x xx xx xx xx" and "06.12.34.56.78" ->
+      "xx.xx.xx.xx.xx". When True, `replacement` is ignored.
+
+    replacement -- used when mask_digits is False:
+        - a str -> used verbatim for every match (e.g. "<PHONE_NUMBER>").
+        - a list/tuple of str -> cycled through round-robin (like PIIFormatter's
+          PIIReplacer), across all matches regardless of country.
     """
 
     def __init__(
         self,
         countries: str | list[str] = "US",
-        replacement: str = "<<pii_phone>>",
+        replacement: str | tuple[str, ...] | list = "<PHONE_NUMBER>",
+        mask_digits: bool = True,
     ):
         super().__init__()
         if isinstance(countries, str):
             countries = [countries]
         self.countries = countries
-        self.replacement = replacement
+        self.mask_digits = mask_digits
+        self.replacements = (replacement,) if isinstance(replacement, str) else tuple(replacement)
+        self._replace_i = 0
+
+    @staticmethod
+    def _mask_digits(raw: str, country_code: int) -> str:
+        """Keep a leading "+cc"/"00cc" prefix, x-out every other digit, keep separators."""
+        prefix_match = re.match(r"(\+|00)\s*" + re.escape(str(country_code)), raw)
+        cut = prefix_match.end() if prefix_match else 0
+        return raw[:cut] + re.sub(r"\d", "x", raw[cut:])
 
     def format(self, text: str) -> str:
         import phonenumbers
@@ -148,7 +170,12 @@ class PhoneNumberPII(BaseFormatter):
             matches = list(phonenumbers.PhoneNumberMatcher(text, country))
             for m in reversed(matches):
                 pii_phones.append(m.raw_string)
-                text = text[:m.start] + self.replacement + text[m.end:]
+                if self.mask_digits:
+                    replacement = self._mask_digits(m.raw_string, m.number.country_code)
+                else:
+                    replacement = self.replacements[self._replace_i]
+                    self._replace_i = (self._replace_i + 1) % len(self.replacements)
+                text = text[:m.start] + replacement + text[m.end:]
         metadata = {}
         if pii_phones:
             metadata["pii_phone"] = pii_phones

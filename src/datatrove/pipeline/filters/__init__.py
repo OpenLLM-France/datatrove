@@ -1,4 +1,5 @@
 from .c4_filters import C4BadWordsFilter, C4ParagraphFilter, C4QualityFilter
+from .commoncrawl_optout_filter import CommonCrawlOptOutFilter
 from .fasttext_filter import FastTextClassifierFilter
 from .fineweb_quality_filter import FineWebQualityFilter
 from .gopher_quality_filter import GopherQualityFilter
