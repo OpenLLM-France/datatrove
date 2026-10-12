@@ -38,6 +38,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
         max_file_size: int = round(4.5 * 2**30),  # 4.5GB, leave some room for the last batch
         schema: Any = None,
         revision: str | None = None,
+        commit_message: str | None = None,
     ):
         """
         This class is intended to upload VERY LARGE datasets. Consider using `push_to_hub` or just using a
@@ -55,6 +56,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
             max_file_size: will create a new file when this size is exceeded (in bytes). -1 for no limit.
                 Filenames will have a number prepended (000_..., 001_..., etc)
             revision: The git revision to commit from. Defaults to the head of the `"main"` branch
+            commit_message: message for the commit created on close. Defaults to "DataTrove upload (N files)"
         """
         self.dataset = dataset
         self.private = private
@@ -81,6 +83,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
         self.operations = []
         self._repo_init = False
         self.revision = revision
+        self.commit_message = commit_message
 
     def upload_files(self, *filenames):
         if not self._repo_init:
@@ -111,7 +114,7 @@ class HuggingFaceDatasetWriter(ParquetWriter):
                     self.dataset,
                     repo_type="dataset",
                     operations=self.operations,
-                    commit_message=f"DataTrove upload ({len(self.operations)} files)",
+                    commit_message=self.commit_message or f"DataTrove upload ({len(self.operations)} files)",
                     revision=self.revision,
                 )
                 break
