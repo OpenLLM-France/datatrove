@@ -284,10 +284,12 @@ class CheckpointManager:
                             self.new_completed_chunks.add(chunk_index)
                             # update the last chunk index/delete local file etc
                             should_update_last_chunk_index = True
-            # can not be within the chunk lock
-            if should_update_last_chunk_index:
-                await self.update_last_chunk_index(rank)
-            return (self.last_chunk_index + 1) * self.records_per_chunk if self.last_chunk_index >= 0 else 0, all_ids
+        # can not be within the chunk lock, nor within checkpoint_file_lock:
+        # update_last_chunk_index takes it again and asyncio.Lock is not
+        # reentrant (resuming with a completed chunk file would hang forever)
+        if should_update_last_chunk_index:
+            await self.update_last_chunk_index(rank)
+        return (self.last_chunk_index + 1) * self.records_per_chunk if self.last_chunk_index >= 0 else 0, all_ids
 
     async def cleanup_last_chunk(self, rank: int, chunk_index: int):
         import shutil
